@@ -1,16 +1,23 @@
-# Base image
+# Use Node.js base image
 FROM node:18-alpine
 
+# Install build dependencies
+RUN apk add --no-cache python3 py3-pip build-base
+
+# Set working directory
 WORKDIR /usr/src/app
 
+# Copy package.json and package-lock.json
 COPY package*.json ./
 
-RUN npm install --legacy-peer-deps
+# Install dependencies
+RUN npm install
 
-COPY .  .
+# Copy the rest of the application code
+COPY . .
 
-RUN npm run build
+# Expose port (change according to your app)
+EXPOSE 3000
 
-EXPOSE 4000
-
-ENTRYPOINT  [ "node", "dist/main.js" ]
+# Command to run the application
+CMD ["npm", "start"]
