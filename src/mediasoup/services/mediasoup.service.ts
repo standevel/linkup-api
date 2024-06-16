@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import * as mediasoup from 'mediasoup';
 import { RtpCapabilities } from 'mediasoup/node/lib/RtpParameters';
 import { RtpParameters } from 'mediasoup/node/lib/fbs/rtp-parameters';
+import { Router, WebRtcTransport } from 'mediasoup/node/lib/types';
 
 @Injectable()
 export class MediasoupService {
@@ -23,7 +24,7 @@ export class MediasoupService {
   public async createRoom(roomId: string) {
     if (this.rooms.has(roomId)) return this.rooms.get(roomId);
 
-    const router = await this.worker.createRouter({
+    const router: Router = await this.worker.createRouter({
       mediaCodecs: [
         {
           kind: 'audio',
@@ -38,7 +39,6 @@ export class MediasoupService {
         },
       ],
     });
-
     const room = {
       router,
       transports: new Map(),
@@ -57,13 +57,14 @@ export class MediasoupService {
     const room = this.getRoom(roomId);
     if (!room) throw new Error(`Room ${roomId} not found`);
 
-    const transport = await room.router.createWebRtcTransport({
-      listenIps: [{ ip: '0.0.0.0', announcedIp: 'your.public.ip.address' }],
+    const transport: WebRtcTransport = await room.router.createWebRtcTransport({
+      listenIps: [{ ip: '0.0.0.0', announcedIp: '192.168.0.121' }],
       enableUdp: true,
       enableTcp: true,
     });
 
     room.transports.set(transport.id, transport);
+
     return transport;
   }
 

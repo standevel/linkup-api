@@ -4,9 +4,9 @@ import {
   WebSocketServer,
   OnGatewayConnection,
   OnGatewayDisconnect,
+  OnGatewayInit,
 } from '@nestjs/websockets';
 import { Server, Socket } from 'socket.io';
-// import { MediasoupService } from '../mediasoup/mediasoup.service';
 import { EVENT_NAME, RTC_EVENTS } from '../enums/rtc-events';
 import { MediasoupService } from './mediasoup.service';
 
@@ -16,11 +16,21 @@ interface RTCEventPayload {
   error?: any;
 }
 
-@WebSocketGateway()
-export class WebrtcGateway implements OnGatewayConnection, OnGatewayDisconnect {
+@WebSocketGateway({
+  cors: {
+    origin: '*',
+  },
+})
+export class WebrtcGateway
+  implements OnGatewayConnection, OnGatewayDisconnect, OnGatewayInit
+{
   @WebSocketServer() server: Server;
 
   constructor(private readonly mediasoupService: MediasoupService) {}
+
+  afterInit() {
+    console.log('Gateway initialized ');
+  }
 
   async handleConnection(client: Socket) {
     console.log(`Client connected: ${client.id}`);
@@ -30,37 +40,43 @@ export class WebrtcGateway implements OnGatewayConnection, OnGatewayDisconnect {
     console.log(`Client disconnected: ${client.id}`);
   }
 
+  @SubscribeMessage('test-callback')
+  handlecallback(client: Socket, data: any) {
+    console.log('test data: ', data);
+    return { socketId: client.id, message: 'This is callback message' };
+  }
   @SubscribeMessage(EVENT_NAME)
   async handleRTCEvent(client: Socket, payload: RTCEventPayload) {
     const { event, data } = payload;
+    console.log('Payload: ', payload);
     try {
       switch (event) {
         case RTC_EVENTS.CREATE_ROOM:
-          await this.handleCreateRoom(client, data);
+          return await this.handleCreateRoom(client, data);
           break;
         case RTC_EVENTS.JOIN_ROOM:
-          await this.handleJoinRoom(client, data);
+          return await this.handleJoinRoom(client, data);
           break;
         case RTC_EVENTS.CREATE_TRANSPORT:
-          await this.handleCreateTransport(client, data);
+          return await this.handleCreateTransport(client, data);
           break;
         case RTC_EVENTS.CONNECT_TRANSPORT:
-          await this.handleConnectTransport(client, data);
+          return await this.handleConnectTransport(client, data);
           break;
         case RTC_EVENTS.PRODUCE:
-          await this.handleProduce(client, data);
+          return await this.handleProduce(client, data);
           break;
         case RTC_EVENTS.CONSUME:
-          await this.handleConsume(client, data);
+          return await this.handleConsume(client, data);
           break;
         case RTC_EVENTS.CREATE_DATA_PRODUCER:
-          await this.handleCreateDataProducer(client, data);
+          return await this.handleCreateDataProducer(client, data);
           break;
         case RTC_EVENTS.CREATE_DATA_CONSUMER:
-          await this.handleCreateDataConsumer(client, data);
+          return await this.handleCreateDataConsumer(client, data);
           break;
         case RTC_EVENTS.SEND_DATA:
-          await this.handleSendData(client, data);
+          return await this.handleSendData(client, data);
           break;
         default:
           client.emit(EVENT_NAME, { event, error: 'Unknown event' });
@@ -73,11 +89,11 @@ export class WebrtcGateway implements OnGatewayConnection, OnGatewayDisconnect {
   private async handleCreateRoom(client: Socket, data: any) {
     const { roomId } = data;
     const room = await this.mediasoupService.createRoom(roomId);
-    console.log('created room: ', room);
+    // console.log('created room rtpCapabilities: ', room.router.rtpCapabilities);
     client.join(roomId);
     client.emit(EVENT_NAME, {
       event: RTC_EVENTS.CREATE_ROOM,
-      data: { roomId },
+      data: { routerRtpCapabilities: room.router.rtpCapabilities, roomId },
     });
   }
 
@@ -96,36 +112,54 @@ export class WebrtcGateway implements OnGatewayConnection, OnGatewayDisconnect {
   }
 
   private async handleCreateTransport(client: Socket, data: any) {
-    const { roomId } = data;
+    const { roomId, direction } = data;
     const transport = await this.mediasoupService.createTransport(roomId);
+
+    const { id, iceParameters, iceCandidates, dtlsParameters } = transport;
+
+    console.log('Transport: ', transport.id);
     client.emit(EVENT_NAME, {
       event: RTC_EVENTS.CREATE_TRANSPORT,
-      data: { transport },
+      data: {
+        id: id,
+        iceCandidates,
+        iceParameters,
+        dtlsParameters,
+        roomId,
+        direction,
+      },
     });
   }
 
   private async handleConnectTransport(client: Socket, data: any) {
-    const { roomId, transportId, dtlsParameters } = data;
+    const { roomId, transportId, dtlsParameters, direction } = data;
+    console.log('connect transport direction: ', direction);
     await this.mediasoupService.connectTransport(
       roomId,
       transportId,
       dtlsParameters,
     );
-    client.emit(EVENT_NAME, { event: RTC_EVENTS.CONNECT_TRANSPORT, data: {} });
+    client.emit(EVENT_NAME, {
+      event: RTC_EVENTS.CONNECT_TRANSPORT,
+      data: { roomId, transportId, dtlsParameters, direction },
+    });
+    return { transportId: transportId };
   }
 
   private async handleProduce(client: Socket, data: any) {
     const { roomId, transportId, kind, rtpParameters } = data;
+    console.log('producing media - kind: ', kind);
     const producer = await this.mediasoupService.produce(
       roomId,
       transportId,
       kind,
       rtpParameters,
     );
-    client.emit(EVENT_NAME, {
-      event: RTC_EVENTS.PRODUCE,
-      data: { id: producer.id },
-    });
+    // client.emit(EVENT_NAME, {
+    //   event: RTC_EVENTS.PRODUCE,
+    //   data: { id: producer.id },
+    // });
+    return { producer_id: producer.id };
   }
 
   private async handleConsume(client: Socket, data: any) {
