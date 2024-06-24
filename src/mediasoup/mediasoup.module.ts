@@ -7,4 +7,4 @@ import { WebrtcGateway } from './services/webrtc.gateway';
   providers: [MediasoupService, WebrtcGateway],
   exports: [MediasoupService],
 })
-export class MediasoupModule {}
+export class MediasoupModule { }

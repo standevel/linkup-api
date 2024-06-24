@@ -8,4 +8,4 @@ import { MediasoupModule } from './mediasoup/mediasoup.module';
   controllers: [AppController],
   providers: [AppService],
 })
-export class AppModule {}
+export class AppModule { }

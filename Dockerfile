@@ -18,6 +18,8 @@ COPY . .
 
 # Expose port (change according to your app)
 EXPOSE 3000
+EXPOSE 3478
+EXPOSE 40000-40500
 
 # Command to run the application
 CMD ["npm", "start"]
